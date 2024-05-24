@@ -3,7 +3,7 @@ const app = express();
 const cors = require("cors");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
 //Middelware
 app.use(express.json());
@@ -32,6 +32,36 @@ async function run() {
     const menuCollection = client.db("BistroBossDb").collection("menuItem");
     const reviewsCollection = client.db("BistroBossDb").collection("reviews");
     const cartCollection = client.db("BistroBossDb").collection("carts");
+    const userCollection = client.db("BistroBossDb").collection("users");
+
+    // ***********************  USER INFORMATION ***************************
+
+    //post user information
+    app.post("/users", async (req, res) => {
+      const userInfo = req.body;
+      const query = {email: userInfo.email}
+      const exitUser = await userCollection.findOne(query)
+      if(exitUser){
+        return res.send({message: 'user already exits', insertedId: null})
+      }
+      const result = await userCollection.insertOne(userInfo);
+      res.send(result);
+    });
+
+    //get user information
+    app.get('/users', async(req,res)=>{
+      const result = await userCollection.find().toArray();
+      res.send(result);
+    })
+    //delete user 
+    app.delete("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // ***********************  MENU INFORMATION ***************************
 
     //find all menus data
     app.get("/menus", async (req, res) => {
@@ -58,6 +88,14 @@ async function run() {
       const email = req.query.email;
       const query = { email: email };
       const result = await cartCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    //delete cart information
+    app.delete("/carts/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await cartCollection.deleteOne(query);
       res.send(result);
     });
 
