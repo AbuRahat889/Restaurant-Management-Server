@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 require("dotenv").config();
+const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
@@ -9,8 +10,21 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 app.use(express.json());
 app.use(cors());
 
-// BistroBoss
-// 4pkkUHvnVsSHtWKa
+// create middelware
+const verifyToken = (req, res, next) => {
+  console.log("this is headers : ", req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "Unauthorize access!!" });
+  }
+  const token = req.headers.authorization.split(" ")[1];
+  jwt.verify(token, process.env.ASSESS_TOKEN_SECRET, function (err, decoded) {
+    if (err) {
+      return res.status(401).send({ message: "Unauthorize access!!" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.g0rptm9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -34,30 +48,54 @@ async function run() {
     const cartCollection = client.db("BistroBossDb").collection("carts");
     const userCollection = client.db("BistroBossDb").collection("users");
 
+    // create token JWT
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ASSESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      // console.log(token);
+      res.send({ token });
+    });
+
     // ***********************  USER INFORMATION ***************************
 
     //post user information
     app.post("/users", async (req, res) => {
       const userInfo = req.body;
-      const query = {email: userInfo.email}
-      const exitUser = await userCollection.findOne(query)
-      if(exitUser){
-        return res.send({message: 'user already exits', insertedId: null})
+      const query = { email: userInfo.email };
+      const exitUser = await userCollection.findOne(query);
+      if (exitUser) {
+        return res.send({ message: "user already exits", insertedId: null });
       }
       const result = await userCollection.insertOne(userInfo);
       res.send(result);
     });
 
     //get user information
-    app.get('/users', async(req,res)=>{
+    app.get("/users", verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
-    })
-    //delete user 
+    });
+
+    //delete user
     app.delete("/users/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    //create admin
+    app.patch(`/users/admin/:id`, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          role: "admin",
+        },
+      };
+      const result = await userCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
