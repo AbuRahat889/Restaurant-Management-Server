@@ -10,21 +10,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 app.use(express.json());
 app.use(cors());
 
-// create middelware
-const verifyToken = (req, res, next) => {
-  console.log("this is headers : ", req.headers.authorization);
-  if (!req.headers.authorization) {
-    return res.status(401).send({ message: "Unauthorize access!!" });
-  }
-  const token = req.headers.authorization.split(" ")[1];
-  jwt.verify(token, process.env.ASSESS_TOKEN_SECRET, function (err, decoded) {
-    if (err) {
-      return res.status(401).send({ message: "Unauthorize access!!" });
-    }
-    req.decoded = decoded;
-    next();
-  });
-};
+//TODO : verify admin after verigy token
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.g0rptm9.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
@@ -48,6 +34,39 @@ async function run() {
     const cartCollection = client.db("BistroBossDb").collection("carts");
     const userCollection = client.db("BistroBossDb").collection("users");
 
+    // create middelware
+    //verify token
+    const verifyToken = (req, res, next) => {
+      console.log("this is headers : ", req.headers.authorization);
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorize access!!" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(
+        token,
+        process.env.ASSESS_TOKEN_SECRET,
+        function (err, decoded) {
+          if (err) {
+            return res.status(401).send({ message: "Unauthorize access!!" });
+          }
+          req.decoded = decoded;
+          next();
+        }
+      );
+    };
+    //verify admin after verify token
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const result = await userCollection.findOne(query);
+      const isAdmin = result.role === "admin";
+
+      if (!isAdmin) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     // create token JWT
     app.post("/jwt", async (req, res) => {
       const user = req.body;
@@ -60,7 +79,40 @@ async function run() {
 
     // ***********************  USER INFORMATION ***************************
 
-    //post user information
+    //create admin (set admin in allUser (admin) page)
+    app.patch(
+      `/users/admin/:id`,
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updateDoc);
+        res.send(result);
+      }
+    );
+
+    //get admin emeil,, load admin email (useAdmin hook )
+    app.get(`/users/admin/:email`, verifyToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded?.email) {
+        return res.status(403).send({ message: "forbidden access!" });
+      }
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
+    });
+
+    //post user information sign up page
     app.post("/users", async (req, res) => {
       const userInfo = req.body;
       const query = { email: userInfo.email };
@@ -72,30 +124,17 @@ async function run() {
       res.send(result);
     });
 
-    //get user information
-    app.get("/users", verifyToken, async (req, res) => {
+    //get user information allUser (admin) page
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
 
-    //delete user
-    app.delete("/users/:id", async (req, res) => {
+    //delete user allUser (admin) page
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
-      res.send(result);
-    });
-
-    //create admin
-    app.patch(`/users/admin/:id`, async (req, res) => {
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updateDoc = {
-        $set: {
-          role: "admin",
-        },
-      };
-      const result = await userCollection.updateOne(filter, updateDoc);
       res.send(result);
     });
 
