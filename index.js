@@ -37,7 +37,7 @@ async function run() {
     // create middelware
     //verify token
     const verifyToken = (req, res, next) => {
-      console.log("this is headers : ", req.headers.authorization);
+      // console.log("this is headers : ", req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "Unauthorize access!!" });
       }
@@ -139,6 +139,14 @@ async function run() {
     });
 
     // ***********************  MENU INFORMATION ***************************
+
+    //post menu items
+    app.post(`/menus`, async (req, res) => {
+      const menusItem = req.body;
+      const result = await menuCollection.insertOne(menusItem);
+      console.log(menusItem);
+      res.send(result);
+    });
 
     //find all menus data
     app.get("/menus", async (req, res) => {
