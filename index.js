@@ -141,16 +141,23 @@ async function run() {
     // ***********************  MENU INFORMATION ***************************
 
     //post menu items
-    app.post(`/menus`, async (req, res) => {
+    app.post(`/menus`, verifyToken, verifyAdmin, async (req, res) => {
       const menusItem = req.body;
       const result = await menuCollection.insertOne(menusItem);
-      console.log(menusItem);
       res.send(result);
     });
 
     //find all menus data
     app.get("/menus", async (req, res) => {
       const result = await menuCollection.find().toArray();
+      res.send(result);
+    });
+
+    //delete menu item
+    app.delete(`/menus/:id`, verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await menuCollection.deleteOne(query);
       res.send(result);
     });
 
